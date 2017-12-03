@@ -39,7 +39,7 @@ def load_data():
     f.close()
     return (training_data, validation_data, test_data)
 
-def load_data_wrapper():
+def load_data_wrapper(make_binary = False):
     """Return a tuple containing ``(training_data, validation_data,
     test_data)``. Based on ``load_data``, but the format is more
     convenient for use in our implementation of neural networks.
@@ -58,15 +58,23 @@ def load_data_wrapper():
     turn out to be the most convenient for use in our neural network
     code."""
     tr_d, va_d, te_d = load_data()
+
     training_inputs = [np.reshape(x, (784, 1)) for x in tr_d[0]]
+    if make_binary: training_inputs = list(map(lambda x:(x>.5)*1,training_inputs))
     training_results = [vectorized_result(y) for y in tr_d[1]]
     training_data = zip(training_inputs, training_results)
     training_data_ae = zip(training_inputs, training_inputs)
+    
     validation_inputs = [np.reshape(x, (784, 1)) for x in va_d[0]]
+    if make_binary: validation_inputs = list(map(lambda x:(x>.5)*1,validation_inputs))
     validation_data = zip(validation_inputs, va_d[1])
+    validation_data_ae = zip(validation_inputs,validation_inputs)
+    
     test_inputs = [np.reshape(x, (784, 1)) for x in te_d[0]]
+    if make_binary: test_inputs = list(map(lambda x:(x>.5)*1,test_inputs))
     test_data = zip(test_inputs, te_d[1])
-    return (training_data, validation_data, test_data,training_data_ae)
+    test_data_ae = zip(test_inputs,test_inputs)
+    return (training_data, validation_data, test_data,training_data_ae,validation_data_ae,test_data_ae)
 
 def vectorized_result(j):
     """Return a 10-dimensional unit vector with a 1.0 in the jth
