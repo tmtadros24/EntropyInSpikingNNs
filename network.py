@@ -18,7 +18,7 @@ import sys
 
 # Third-party libraries
 import numpy as np
-
+from scipy.spatial.distance import cdist # for small world weights
 
 #### Define the quadratic and cross-entropy cost functions
 
@@ -63,7 +63,7 @@ class CrossEntropyCost(object):
 #### Main Network class
 class Network(object):
 
-    def __init__(self, sizes, cost=CrossEntropyCost):
+    def __init__(self, sizes, cost=CrossEntropyCost, doHeavy = False, doSmallWorld=False):
         """The list ``sizes`` contains the number of neurons in the respective
         layers of the network.  For example, if the list was [2, 3, 1]
         then it would be a three-layer network, with the first layer
@@ -75,10 +75,11 @@ class Network(object):
         """
         self.num_layers = len(sizes)
         self.sizes = sizes
-        self.default_weight_initializer()
+        self.default_weight_initializer(doSmallWorld)
         self.cost=cost
+        self.doHeavyside = doHeavy
 
-    def default_weight_initializer(self):
+    def default_weight_initializer(self,doSmallWorld):
         """Initialize each weight using a Gaussian distribution with mean 0
         and standard deviation 1 over the square root of the number of
         weights connecting to the same neuron.  Initialize the biases
@@ -90,8 +91,12 @@ class Network(object):
         layers.
         """
         self.biases = [np.random.randn(y, 1) for y in self.sizes[1:]]
-        self.weights = [np.random.randn(y, x)/np.sqrt(x)
-                        for x, y in zip(self.sizes[:-1], self.sizes[1:])]
+        if doSmallWorld:
+            self.weights = [gen_weights_local(x,y)
+                            for x, y in zip(self.sizes[:-1], self.sizes[1:])]
+        else:
+            self.weights = [np.random.randn(y, x)/np.sqrt(x)
+                            for x, y in zip(self.sizes[:-1], self.sizes[1:])]
 
     def large_weight_initializer(self):
         """Initialize the weights using a Gaussian distribution with mean 0
@@ -112,8 +117,15 @@ class Network(object):
 
     def feedforward(self, a):
         """Return the output of the network if ``a`` is input."""
+        cnt = 0
         for b, w in zip(self.biases, self.weights):
-            a = sigmoid(np.dot(w, a)+b)
+            if self.doHeavyside:
+                cnt +=1
+            if (cnt == 3):
+                a = heavyside_99(np.dot(w, a)+b)
+            else:
+                a = sigmoid(np.dot(w, a)+b)
+            
         return a
 
     def SGD(self, training_data, epochs, mini_batch_size, eta,
@@ -226,6 +238,11 @@ class Network(object):
             delta = np.dot(self.weights[-l+1].transpose(), delta) * sp
             nabla_b[-l] = delta
             nabla_w[-l] = np.dot(delta, activations[-l-1].transpose())
+        for i in range(self.num_layers): # added to keep nan layers as nan
+            this_bad = np.isnan(self.weights[i])
+            print(sum(this_bad),type(this_bad),np.shape(this_bad))
+            nabla_b[i][this_bad] = 0
+            nabla_w[i][this_bad] = 0
         return (nabla_b, nabla_w)
 
     def accuracy(self, data, convert=False):
@@ -314,3 +331,21 @@ def sigmoid(z):
 def sigmoid_prime(z):
     """Derivative of the sigmoid function."""
     return sigmoid(z)*(1-sigmoid(z))
+
+def heavyside_99(z):
+    """Heavyside Function w/o hitting edge"""
+    return (z>0)*.99+((z>0)==0)*.01
+
+def gen_weights_local(nx,ny,tol=.3):
+    rad1 = (np.arange(nx,dtype=float)/nx)*2*np.pi
+    rad2 = (np.arange(ny,dtype=float)/ny)*2*np.pi
+    loc1 = np.transpose(np.array([np.cos(rad1),np.sin(rad1)]))
+    loc2 = np.transpose(np.array([np.cos(rad2),np.sin(rad2)]))
+    mat = cdist(loc2,loc1)
+    in_thresh = mat<tol
+    norm = np.mean(in_thresh)*np.sqrt(nx)
+    wts = np.random.randn(ny, nx)/norm
+    #wts[in_thresh==0] = 0
+    wts[in_thresh==0] = np.nan # just testing out
+    print(sum(in_thresh==0),sum(in_thresh==1))
+    return wts
