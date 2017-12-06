@@ -26,7 +26,7 @@ Takes in weights and biases and returns reconstructed images from the spiking ne
 def feedforward_spiking_network(weights, biases):
 	assert len(weights) == len(biases) == 4
 
-	training_data, validation_data, test_data, train_ae, test_ae = mnist_loader.load_data_wrapper()
+	training_data, validation_data, test_data, train_ae,_, test_ae = mnist_loader.load_data_wrapper()
 	spike_trains = generate_spike_trains(test_ae[:][:], 100, 1)
 	output_spike_train = np.zeros((len(test_ae), 784, 100)) # 10000 x 784 x 100 - 100 is number of time steps
 	for i in range(len(test_ae)):
