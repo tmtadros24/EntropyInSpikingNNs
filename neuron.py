@@ -16,31 +16,30 @@ class Neuron:
 		self.C = 10 # capacitance in microfarads
 		self.tau = self.R * self.C # Time constant
 		self.t_ref = 2 # refractory period
-		self.threshold = -60 # spike threshold
+		self.threshold = -64.95 # spike threshold
 		self.V_spike = 70 # spike delta
 		self.spikes = zeros(len(self.time))
 
-	def update(self, current=10):
-		current = np.random.randint(10,20)
-		print current
+	def update(self, current=[10]*np.ones(100)):
 		for i,t in enumerate(self.time):
 			if t > self.t_rest:
-				self.V[i] = self.V[i-1] + (current*self.R)/self.tau*self.dt # Integration process
+				self.V[i] = self.V[i-1] + (current[i]*self.R)/self.tau*self.dt # Integration process
 			if self.V[i] >= self.threshold: # spike and set new refractory period
 				self.spikes[i] = 1
 				self.V[i] += self.V_spike + self.V[i]
 				self.t_rest = t + self.t_ref	
+		return self.spikes
 
 	def plot_neuron(self, index, n):
 		ax = plt.subplot(2,n, index+1)
-		plt.plot(self.time, self.get_firing_rates())
+		plt.plot(self.time, self.get_voltages())
 		ylabel('Membrane Potential (V)')
 
 	def get_spikes(self):
 		return self.spikes
 
 	def get_voltages(self):
-		return self.voltages
+		return self.V
 
 	def get_firing_rates(self):
 		firing_rates = zeros(len(self.time))
@@ -48,7 +47,7 @@ class Neuron:
 			firing_rates[i] = np.sum(self.spikes[0:i])
 
 		return firing_rates/self.T/10
-
+'''
 neurons = []
 for i in range(3):
 	neurons.append(Neuron())
@@ -63,3 +62,4 @@ for i in range(3):
 xlabel('Time(msec)')
 
 show()
+'''
