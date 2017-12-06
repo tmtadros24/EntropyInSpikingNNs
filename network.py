@@ -63,7 +63,7 @@ class CrossEntropyCost(object):
 #### Main Network class
 class Network(object):
 
-    def __init__(self, sizes, cost=CrossEntropyCost, doHeavy = False, doSmallWorld=False):
+    def __init__(self, sizes, cost=CrossEntropyCost, doHeavy = False, doSmallWorld=False,add_rand=None):
         """The list ``sizes`` contains the number of neurons in the respective
         layers of the network.  For example, if the list was [2, 3, 1]
         then it would be a three-layer network, with the first layer
@@ -75,11 +75,12 @@ class Network(object):
         """
         self.num_layers = len(sizes)
         self.sizes = sizes
-        self.default_weight_initializer(doSmallWorld)
+        self.default_weight_initializer(doSmallWorld,add_rand)
+        self.dead_weight = [np.isnan(x) for x in self.weights]
         self.cost=cost
         self.doHeavyside = doHeavy
 
-    def default_weight_initializer(self,doSmallWorld):
+    def default_weight_initializer(self,doSmallWorld,add_rand):
         """Initialize each weight using a Gaussian distribution with mean 0
         and standard deviation 1 over the square root of the number of
         weights connecting to the same neuron.  Initialize the biases
@@ -92,7 +93,7 @@ class Network(object):
         """
         self.biases = [np.random.randn(y, 1) for y in self.sizes[1:]]
         if doSmallWorld:
-            self.weights = [gen_weights_local(x,y)
+            self.weights = [gen_weights_local(x,y,add_rand=add_rand)
                             for x, y in zip(self.sizes[:-1], self.sizes[1:])]
         else:
             self.weights = [np.random.randn(y, x)/np.sqrt(x)
@@ -185,6 +186,7 @@ class Network(object):
                 print "Accuracy on evaluation data: {} / {}".format(
                     self.accuracy(evaluation_data), n_data)
             print
+            self.reset_dead_weights()
         return evaluation_cost, evaluation_accuracy, \
             training_cost, training_accuracy
 
@@ -198,11 +200,14 @@ class Network(object):
         nabla_b = [np.zeros(b.shape) for b in self.biases]
         nabla_w = [np.zeros(w.shape) for w in self.weights]
         for x, y in mini_batch:
+            self.reset_dead_weights()
             delta_nabla_b, delta_nabla_w = self.backprop(x, y)
+            self.reset_dead_weights()
             nabla_b = [nb+dnb for nb, dnb in zip(nabla_b, delta_nabla_b)]
             nabla_w = [nw+dnw for nw, dnw in zip(nabla_w, delta_nabla_w)]
         self.weights = [(1-eta*(lmbda/n))*w-(eta/len(mini_batch))*nw
                         for w, nw in zip(self.weights, nabla_w)]
+        self.reset_dead_weights()
         self.biases = [b-(eta/len(mini_batch))*nb
                        for b, nb in zip(self.biases, nabla_b)]
 
@@ -232,17 +237,13 @@ class Network(object):
         # second-last layer, and so on.  It's a renumbering of the
         # scheme in the book, used here to take advantage of the fact
         # that Python can use negative indices in lists.
+        #print(np.shape(nabla_w[0]),np.shape(nabla_w[1]),np.shape(self.dead_weight),np.shape(self.dead_weight[0]))
         for l in xrange(2, self.num_layers):
             z = zs[-l]
             sp = sigmoid_prime(z)
             delta = np.dot(self.weights[-l+1].transpose(), delta) * sp
             nabla_b[-l] = delta
             nabla_w[-l] = np.dot(delta, activations[-l-1].transpose())
-        for i in range(self.num_layers): # added to keep nan layers as nan
-            this_bad = np.isnan(self.weights[i])
-            print(sum(this_bad),type(this_bad),np.shape(this_bad))
-            nabla_b[i][this_bad] = 0
-            nabla_w[i][this_bad] = 0
         return (nabla_b, nabla_w)
 
     def accuracy(self, data, convert=False):
@@ -299,6 +300,9 @@ class Network(object):
         f = open(filename, "w")
         json.dump(data, f)
         f.close()
+    def reset_dead_weights(self):
+        for i in range(self.num_layers-1):
+            self.weights[i][self.dead_weight[i]] = 0
 
 #### Loading a Network
 def load(filename):
@@ -336,16 +340,26 @@ def heavyside_99(z):
     """Heavyside Function w/o hitting edge"""
     return (z>0)*.99+((z>0)==0)*.01
 
-def gen_weights_local(nx,ny,tol=.3):
+def gen_weights_local(nx,ny,tol=.8,add_rand=None):
     rad1 = (np.arange(nx,dtype=float)/nx)*2*np.pi
     rad2 = (np.arange(ny,dtype=float)/ny)*2*np.pi
     loc1 = np.transpose(np.array([np.cos(rad1),np.sin(rad1)]))
     loc2 = np.transpose(np.array([np.cos(rad2),np.sin(rad2)]))
     mat = cdist(loc2,loc1)
     in_thresh = mat<tol
+    if add_rand:
+        long_cnx = add_rand_con(nx,ny,add_rand)
+        in_thresh[long_cnx] = 1
     norm = np.mean(in_thresh)*np.sqrt(nx)
     wts = np.random.randn(ny, nx)/norm
-    #wts[in_thresh==0] = 0
-    wts[in_thresh==0] = np.nan # just testing out
-    print(sum(in_thresh==0),sum(in_thresh==1))
+    wts[in_thresh==0] = np.nan
     return wts
+
+def add_rand_con(nx,ny,pct):
+    pool = np.arange(nx*ny)
+    cnx = np.array(random.sample(pool,nx*ny*pct/100))
+    p_x = cnx%nx
+    p_y = cnx//nx
+    new_wts = np.zeros((ny,nx))==1
+    new_wts[p_y,p_x] = True
+    return new_wts
