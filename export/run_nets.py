@@ -4,8 +4,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 import cPickle as pickle
 
-change_bottleneck_layer = False
-change_small_worldness = True
+change_bottleneck_layer = True
+change_small_worldness = False
 # import data
 training_data, validation_data, test_data,train_ae,val_ae,test_ae = mnist_loader.load_data_wrapper(make_binary =True)
 
