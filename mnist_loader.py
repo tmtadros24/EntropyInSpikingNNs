@@ -62,6 +62,8 @@ def load_data_wrapper(make_binary = False):
     training_inputs = [np.reshape(x, (784, 1)) for x in tr_d[0]]
     if make_binary: training_inputs = list(map(lambda x:(x>.5)*1,training_inputs))
     training_results = [vectorized_result(y) for y in tr_d[1]]
+    print(type(training_inputs),np.shape(training_inputs))
+    print(type(training_results),np.shape(training_results))
     training_data = zip(training_inputs, training_results)
     training_data_ae = zip(training_inputs, training_inputs)
     
